@@ -1,0 +1,7 @@
+{
+  "name": "cupx-otp",
+  "type": "module",
+  "dependencies": {
+    "nodemailer": "^6.9.0"
+  }
+}
