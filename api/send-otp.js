@@ -4,62 +4,86 @@ let otpStore = {};
 
 export default async function handler(req, res) {
 
-if (req.method !== "POST") {
-return res.status(405).json({ message: "Method not allowed" });
-}
+  /* ---- CORS FIX ---- */
 
-const { email, otp, verify } = req.body;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-/* VERIFY OTP */
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-if (verify) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
+  }
 
-const record = otpStore[email];
+  /* ---- READ BODY ---- */
 
-if (!record) {
-return res.status(400).json({ success:false });
-}
+  const { email, otp, verify } = req.body || {};
 
-if (record.code != otp || Date.now() > record.expires) {
-return res.status(400).json({ success:false });
-}
+  /* ---- VERIFY OTP ---- */
 
-delete otpStore[email];
+  if (verify) {
 
-return res.status(200).json({ success:true });
+    const record = otpStore[email];
 
-}
+    if (!record) {
+      return res.status(400).json({ success: false });
+    }
 
-/* SEND OTP */
+    if (record.code != otp || Date.now() > record.expires) {
+      return res.status(400).json({ success: false });
+    }
 
-if (!email) {
-return res.status(400).json({ message:"Email required" });
-}
+    delete otpStore[email];
 
-const generatedOtp = Math.floor(100000 + Math.random() * 900000);
+    return res.status(200).json({ success: true });
+  }
 
-otpStore[email] = {
-code: generatedOtp,
-expires: Date.now() + 5*60*1000
-};
+  /* ---- SEND OTP ---- */
 
-const transporter = nodemailer.createTransport({
-host:"smtp-relay.brevo.com",
-port:587,
-auth:{
-user:process.env.BREVO_USER,
-pass:process.env.BREVO_PASS
-}
-});
+  if (!email) {
+    return res.status(400).json({ message: "Email required" });
+  }
 
-await transporter.sendMail({
-from:"no-reply@cupx.in",
-to:email,
-subject:"CupX Email Verification",
-text:`Your OTP is ${generatedOtp}. It expires in 5 minutes.`,
-replyTo:"info@cupx.in"
-});
+  const generatedOtp = Math.floor(100000 + Math.random() * 900000);
 
-return res.status(200).json({success:true});
+  otpStore[email] = {
+    code: generatedOtp,
+    expires: Date.now() + 5 * 60 * 1000
+  };
+
+  const transporter = nodemailer.createTransport({
+    host: "smtp-relay.brevo.com",
+    port: 587,
+    auth: {
+      user: process.env.BREVO_USER,
+      pass: process.env.BREVO_PASS
+    }
+  });
+
+  try {
+
+    await transporter.sendMail({
+      from: "no-reply@cupx.in",
+      to: email,
+      subject: "CupX Email Verification",
+      text: `Your OTP is ${generatedOtp}. It expires in 5 minutes.`,
+      replyTo: "info@cupx.in"
+    });
+
+    return res.status(200).json({ success: true });
+
+  } catch (error) {
+
+    console.error("MAIL ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Email send failed"
+    });
+
+  }
 
 }
